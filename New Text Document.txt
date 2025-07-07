@@ -1,0 +1,54 @@
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier,IsolationForest
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler, LabelEncoder
+import pickle
+
+# Load dataset
+df = pd.read_csv("synthetic_aml_dataset_raw.csv")
+df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+# Encode categorical
+df['type_encoded'] = LabelEncoder().fit_transform(df['type'])
+df['origin_flag'] = df['origin'].apply(lambda x: 1 if 'SHELL' in x else 0)
+df['dest_flag'] = df['dest'].apply(lambda x: 1 if 'SHELL' in x else 0)
+df['hour'] = df['timestamp'].dt.hour
+df['day'] = df['timestamp'].dt.dayofweek
+df['is_internal'] = (df['origin_flag'] + df['dest_flag'] == 2).astype(int)
+df['is_suspicious_transfer'] = ((df['type'] == 'TRANSFER') & (df['origin_flag'] == 1) & (df['dest_flag'] == 0)).astype(int)
+
+# Feature set
+features = [
+    'type_encoded', 'amount', 'origin_flag', 'dest_flag',
+    'hour', 'day', 'is_internal', 'is_suspicious_transfer'
+]
+
+X = df[features]
+y = df['is_fraud']
+
+# Scale features
+scaler = MinMaxScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, stratify=y, random_state=42)
+
+# Train Random Forest
+rf_model = RandomForestClassifier(n_estimators=100, max_depth=10, class_weight='balanced', random_state=42)
+rf_model.fit(X_train, y_train)
+
+iso_model = IsolationForest(n_estimators=100, contamination=0.01, random_state=42)
+iso_model.fit(X_scaled)
+
+# Save artifacts
+with open("rf_model.pkl", "wb") as f:
+    pickle.dump(rf_model, f)
+with open("iso_model.pkl", "wb") as f:
+    pickle.dump(iso_model, f)
+with open("scaler.pkl", "wb") as f:
+    pickle.dump(scaler, f)
+with open("label_encoder.pkl", "wb") as f:
+    pickle.dump(LabelEncoder().fit(df['type']), f)
+
+print("Models training complete and saved.")
