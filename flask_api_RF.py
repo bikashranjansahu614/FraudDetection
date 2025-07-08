@@ -51,12 +51,18 @@ def predict():
         rf_prob = rf_model.predict_proba(features_scaled)[0][1]  # risk score
 
         # Unsupervised anomaly
-        iso_pred = iso_model.predict(features_scaled)[0]  # -1 = anomaly
-        is_anomaly = int(iso_pred == -1)
+        iso_pred = iso_model.predict(features_scaled)  # -1 = anomaly
+        is_anomaly = int(iso_pred[0] == -1)
+
+        explanation = []
+
+        if amount > 10000:
+            explanation.append("High amount transaction.")
+
         
         is_fraud = int(rf_pred == 1 or is_anomaly == 1)
         
-        explanation = []
+        
         if rf_pred == 1:
             explanation.append("Matched historical fraud patterns (RF)")
         if is_anomaly:
@@ -65,6 +71,7 @@ def predict():
             explanation.append("Suspicious shell transfer")
         if origin_flag == 1 and dest_flag == 1:
             explanation.append("Both origin and destination are shell accounts")
+        
 
         if is_fraud:
             log_row = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), tx_type, amount,
@@ -79,6 +86,7 @@ def predict():
             "fraud": bool(is_fraud),
             "risk_score": round(rf_prob, 3),
             "explanation": explanation or ["Low risk"]
+            
         })
 
         
@@ -120,4 +128,4 @@ def dashboard():
     return html
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=False)
+    app.run(port=5004, debug=False)
